@@ -1,0 +1,42 @@
+name: "Release PR Action"
+description: "Creates or updates a release pull request from staging to production branch"
+author: "Your Organization"
+
+inputs:
+    github-token:
+        description: "GitHub token for creating/updating pull requests"
+        required: true
+    production-branch:
+        description: "Production branch name (e.g., main)"
+        required: false
+        default: "main"
+    staging-branch:
+        description: "Staging branch name (e.g., develop)"
+        required: false
+        default: "develop"
+    pr-title:
+        description: "Title for the release PR"
+        required: false
+        default: "Release PR"
+    labels:
+        description: "Comma-separated list of labels to add to the PR"
+        required: false
+        default: "release"
+
+outputs:
+    pr-number:
+        description: "The PR number (either existing or newly created)"
+        value: ${{ steps.release_pr.outputs.number }}
+    pr-exists:
+        description: "Whether a PR already existed"
+        value: ${{ steps.release_pr.outputs.exists }}
+
+runs:
+    using: "composite"
+    steps:
+        - name: Create or Update Release PR
+          id: release_pr
+          shell: bash
+          run: bash ${{ github.action_path }}/scripts/release-pr.sh run "${{ inputs.pr-title }}" "${{ inputs.production-branch }}" "${{ inputs.staging-branch }}" "${{ inputs.labels }}"
+          env:
+              GH_TOKEN: ${{ inputs.github-token }}
