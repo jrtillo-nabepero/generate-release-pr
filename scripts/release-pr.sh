@@ -2,12 +2,13 @@
 set -e
 
 # Release PR Action Script
-# Usage: release-pr.sh <command> [arguments...]
+# Usage: release-pr.sh <pr-title> <production-branch> <staging-branch> <labels>
 
-# Functions
-set_output() {
-    echo "$1=$2" >> $GITHUB_OUTPUT
-}
+# Assign input parameters
+PR_TITLE="$1"
+PRODUCTION_BRANCH="$2"
+STAGING_BRANCH="$3"
+LABELS="$4"
 
 log() {
     echo "$1"
@@ -80,107 +81,35 @@ update_existing_pr() {
     gh pr edit "$pr_number" --body-file pr_body.txt
 }
 
-# Command handling
-COMMAND="$1"
-shift
+# Main execution flow
+log "Starting release PR workflow..."
 
-case "$COMMAND" in
-  check-pr)
-    PRODUCTION_BRANCH="$1"
-    STAGING_BRANCH="$2"
-    
-    PR_NUMBER=$(check_existing_pr "$PRODUCTION_BRANCH" "$STAGING_BRANCH")
-    
-    if [ -n "$PR_NUMBER" ]; then
-      set_output "exists" "true"
-      set_output "number" "$PR_NUMBER"
-      log "Existing release PR found: #$PR_NUMBER"
-    else
-      set_output "exists" "false"
-      log "No existing release PR found"
-    fi
-    ;;
+# Check for existing PR
+PR_NUMBER=$(check_existing_pr "$PRODUCTION_BRANCH" "$STAGING_BRANCH")
 
-  generate-description)
-    PRODUCTION_BRANCH="$1"
-    STAGING_BRANCH="$2"
-    
-    generate_pr_description "$PRODUCTION_BRANCH" "$STAGING_BRANCH"
-    log "PR Description:"
-    cat pr_body.txt
-    ;;
+if [ -n "$PR_NUMBER" ]; then
+    PR_EXISTS=true
+    log "Found existing release PR: #$PR_NUMBER"
+else
+    PR_EXISTS=false
+    log "No existing release PR"
+fi
 
-  create-pr)
-    PR_TITLE="$1"
-    PRODUCTION_BRANCH="$2"
-    STAGING_BRANCH="$3"
-    LABELS="$4"
-    
+# Generate PR description
+if generate_pr_description "$PRODUCTION_BRANCH" "$STAGING_BRANCH"; then
+    PR_COUNT=$(wc -l < release_prs.txt)
+    log "Generated description with $PR_COUNT PR(s)"
+else
+    log "No PRs to include"
+fi
+
+# Create or update PR
+if [ "$PR_EXISTS" = false ]; then
     LABEL_FLAGS=$(parse_labels "$LABELS")
     create_new_pr "$PR_TITLE" "$PRODUCTION_BRANCH" "$STAGING_BRANCH" "$LABEL_FLAGS"
-    
     PR_NUMBER=$(check_existing_pr "$PRODUCTION_BRANCH" "$STAGING_BRANCH")
-    set_output "number" "$PR_NUMBER"
-    log "✅ Release PR #$PR_NUMBER created successfully"
-    ;;
-
-  update-pr)
-    PR_NUMBER="$1"
-    
+    log "Created release PR #$PR_NUMBER"
+else
     update_existing_pr "$PR_NUMBER"
-    log "✅ Release PR #$PR_NUMBER updated successfully"
-    ;;
-
-  run)
-    PR_TITLE="$1"
-    PRODUCTION_BRANCH="$2"
-    STAGING_BRANCH="$3"
-    LABELS="$4"
-    
-    # Check for existing PR
-    PR_NUMBER=$(check_existing_pr "$PRODUCTION_BRANCH" "$STAGING_BRANCH")
-    
-    if [ -n "$PR_NUMBER" ]; then
-      PR_EXISTS=true
-      set_output "exists" "true"
-      set_output "number" "$PR_NUMBER"
-      log "📝 Found existing release PR: #$PR_NUMBER"
-    else
-      PR_EXISTS=false
-      set_output "exists" "false"
-      log "📝 No existing release PR"
-    fi
-    
-    # Generate PR description
-    if generate_pr_description "$PRODUCTION_BRANCH" "$STAGING_BRANCH"; then
-      PR_COUNT=$(wc -l < release_prs.txt)
-      log "📋 Generated description with $PR_COUNT PR(s)"
-    else
-      log "📋 No PRs to include"
-    fi
-    
-    # Create or update PR
-    if [ "$PR_EXISTS" = false ]; then
-      LABEL_FLAGS=$(parse_labels "$LABELS")
-      create_new_pr "$PR_TITLE" "$PRODUCTION_BRANCH" "$STAGING_BRANCH" "$LABEL_FLAGS"
-      PR_NUMBER=$(check_existing_pr "$PRODUCTION_BRANCH" "$STAGING_BRANCH")
-      set_output "number" "$PR_NUMBER"
-      log "✅ Created release PR #$PR_NUMBER"
-    else
-      update_existing_pr "$PR_NUMBER"
-      log "✅ Updated release PR #$PR_NUMBER"
-    fi
-    ;;
-
-  *)
-    log "Error: Unknown command '$COMMAND'"
-    log "Usage: release-pr.sh <command> [arguments...]"
-    log "Commands:"
-    log "  run <pr-title> <production-branch> <staging-branch> <labels>"
-    log "  check-pr <production-branch> <staging-branch>"
-    log "  generate-description <production-branch> <staging-branch>"
-    log "  create-pr <pr-title> <production-branch> <staging-branch> <labels>"
-    log "  update-pr <pr-number>"
-    exit 1
-    ;;
-esac
+    log "Updated release PR #$PR_NUMBER"
+fi

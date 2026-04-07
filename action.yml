@@ -37,6 +37,6 @@ runs:
         - name: Create or Update Release PR
           id: release_pr
           shell: bash
-          run: bash ${{ github.action_path }}/scripts/release-pr.sh run "${{ inputs.pr-title }}" "${{ inputs.production-branch }}" "${{ inputs.staging-branch }}" "${{ inputs.labels }}"
+          run: bash ${{ github.action_path }}/scripts/release-pr.sh "${{ inputs.pr-title }}" "${{ inputs.production-branch }}" "${{ inputs.staging-branch }}" "${{ inputs.labels }}"
           env:
               GH_TOKEN: ${{ inputs.github-token }}
